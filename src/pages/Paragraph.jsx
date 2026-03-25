@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import DictionaryModal from "../components/DictionaryModal";
 import paragraphService from "../services/paragraphService";
 
 const Paragraph = () => {
   const [translation, setTranslation] = useState("");
   const [paragraphData, setParagraphData] = useState(null);
+  const [focusedSegment, setFocusedSegment] = useState(0);
   const [isDictionaryOpen, setIsDictionaryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,9 +28,104 @@ const Paragraph = () => {
     fetchParagraph();
   }, []);
 
+  const segmentList = useMemo(() => {
+    // Ưu tiên sử dụng segments từ API
+    if (paragraphData?.segments && Array.isArray(paragraphData.segments)) {
+      const segments = paragraphData.segments.map((seg, idx) => ({
+        isNewBlock: seg.isNewBlock !== undefined ? seg.isNewBlock : false,
+        segment: seg.content.trim(),
+        index: idx,
+      }));
+
+      // Nếu segments từ API không có isNewBlock, tính dựa trên paragraph text
+      if (segments.every((s) => !s.isNewBlock)) {
+        const fullText = paragraphData?.paragraph || "";
+
+        return segments.map((seg, idx) => {
+          // Tìm vị trí segment trong paragraph text
+          const segmentIndex = fullText.indexOf(seg.segment);
+
+          let isNewBlock = false;
+
+          if (segmentIndex > 0) {
+            // Kiểm tra: nếu trước segment này có "\n" hoặc "\n\n", đó là block mới
+            const charBefore = fullText[segmentIndex - 1];
+            const charBefore2 = fullText[segmentIndex - 2];
+
+            // Có "\n\n" hoặc "\n" (sau whitespace) trước segment = block mới
+            if (
+              charBefore === "\n" ||
+              (charBefore === " " && charBefore2 === "\n")
+            ) {
+              isNewBlock = true;
+            }
+          } else if (idx === 0) {
+            // Segment đầu tiên luôn là block mới
+            isNewBlock = idx === 0;
+          }
+
+          return { ...seg, isNewBlock };
+        });
+      }
+
+      return segments;
+    }
+
+    console.log(paragraphData);
+
+    // Fallback: tính toán từ paragraph text
+    const blocks = paragraphData?.paragraph.split("\n\n") || [];
+
+    const segments = blocks.flatMap((block, blockIndex) => {
+      const sentences = block.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
+
+      return sentences.map((sentence, sentIndex) => ({
+        isNewBlock: sentIndex === 0 && blockIndex > 0,
+        segment: sentence.trim(),
+      }));
+    });
+
+    return segments;
+  }, [paragraphData]);
+
+  const groupedSegments = useMemo(() => {
+    const groups = [];
+    let currentGroup = [];
+
+    segmentList.forEach((seg) => {
+      if (seg.isNewBlock && currentGroup.length > 0) {
+        groups.push(currentGroup);
+        currentGroup = [seg];
+      } else {
+        currentGroup.push(seg);
+      }
+    });
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    return groups;
+  }, [segmentList]);
+
+  console.log(groupedSegments);
+
+  const handleSubmit = () => {
+    if (!translation) return;
+    setFocusedSegment((prev) => prev + 1);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+    // Shift+Enter = xuống dòng bình thường
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-center">
         <p className="text-xl">Đang tải...</p>
       </div>
     );
@@ -37,19 +133,14 @@ const Paragraph = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-center">
         <p className="text-xl text-red-500">{error}</p>
       </div>
     );
   }
 
-  const formattedParagraph = paragraphData?.paragraph
-    ?.split("\n\n")
-    .map((para) => para.trim())
-    .filter((para) => para);
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white w-3/4 flex flex-col justify-center mx-auto">
+    <div className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950 text-white w-2/3 flex flex-col justify-center mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-5xl font-bold text-yellow-400">
@@ -68,17 +159,19 @@ const Paragraph = () => {
         <div className="col-span-8 space-y-6">
           {/* Paragraph Card */}
           <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700">
-            <div className="mb-4">
-              <h2 className="text-base font-semibold">
-                <span className="text-red-500">Xin chào!</span>
-                <span className="text-gray-400 ml-1">
-                  Tôi hy vọng bạn khỏe.
-                </span>
-              </h2>
-            </div>
-            <div className="text-gray-300 text-sm leading-relaxed space-y-4">
-              {formattedParagraph?.map((para, idx) => (
-                <p key={idx}>{para}</p>
+            <div className="text-gray-300 text-lg leading-relaxed space-y-4">
+              {groupedSegments.map((group, groupIndex) => (
+                <p key={groupIndex}>
+                  {group.map((seg, segIndex) => (
+                    <span
+                      key={segIndex}
+                      className={`${seg.index === focusedSegment ? "text-pink-500" : ""}`}
+                    >
+                      {seg.segment}
+                      {segIndex < group.length - 1 ? " " : ""}
+                    </span>
+                  ))}
+                </p>
               ))}
             </div>
           </div>
@@ -88,6 +181,7 @@ const Paragraph = () => {
             <textarea
               value={translation}
               onChange={(e) => setTranslation(e.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Enter your English translation here... (Only highlighted sentence)"
               className="w-full bg-slate-700/50 text-white placeholder-gray-400 rounded-lg px-4 py-4 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none h-24 text-sm"
             />
@@ -156,7 +250,11 @@ const Paragraph = () => {
           <span>Quit</span>
         </button>
 
-        <button className="flex items-center gap-3 bg-yellow-400 hover:bg-yellow-500 text-slate-900 rounded-lg px-8 py-3 font-bold text-sm transition duration-200">
+        <button
+          onClick={handleSubmit}
+          disabled={!translation}
+          className="flex items-center gap-3 bg-yellow-400 hover:bg-yellow-500 text-slate-900 rounded-lg px-8 py-3 font-bold text-sm transition duration-200 cursor-pointer disabled:grayscale disabled:cursor-not-allowed"
+        >
           <span>Submit</span>
         </button>
       </div>
