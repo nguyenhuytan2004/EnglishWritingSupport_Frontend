@@ -1,3 +1,5 @@
+import { BookMarked, X } from "lucide-react";
+
 const DictionaryModal = ({ isOpen, onClose, vocabularies }) => {
   if (!isOpen) return null;
 
@@ -6,12 +8,15 @@ const DictionaryModal = ({ isOpen, onClose, vocabularies }) => {
       <div className="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-700">
-          <h2 className="text-2xl font-bold text-white">📚 Dictionary</h2>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <BookMarked size={24} className="text-yellow-300" />
+            <span>Dictionary</span>
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white text-2xl font-bold transition"
           >
-            ✕
+            <X size={24} />
           </button>
         </div>
 

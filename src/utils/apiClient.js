@@ -40,6 +40,9 @@ class ApiClient {
   post(endpoint, data) {
     return this.request(endpoint, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(data),
     });
   }
@@ -47,6 +50,9 @@ class ApiClient {
   put(endpoint, data) {
     return this.request(endpoint, {
       method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(data),
     });
   }
@@ -58,6 +64,9 @@ class ApiClient {
   patch(endpoint, data) {
     return this.request(endpoint, {
       method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(data),
     });
   }

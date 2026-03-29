@@ -8,7 +8,7 @@ export const MainRouter = [
     children: [
       {
         index: true,
-        element: <Home />,
+        element: <Paragraph />,
       },
       {
         path: "paragraph",

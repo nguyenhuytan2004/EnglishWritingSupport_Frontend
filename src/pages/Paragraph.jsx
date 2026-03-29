@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { ArrowLeft, BookOpen, Brain } from "lucide-react";
 import DictionaryModal from "../components/DictionaryModal";
 import paragraphService from "../services/paragraphService";
 
@@ -9,6 +10,8 @@ const Paragraph = () => {
   const [isDictionaryOpen, setIsDictionaryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     const fetchParagraph = async () => {
@@ -71,8 +74,6 @@ const Paragraph = () => {
       return segments;
     }
 
-    console.log(paragraphData);
-
     // Fallback: tính toán từ paragraph text
     const blocks = paragraphData?.paragraph.split("\n\n") || [];
 
@@ -108,11 +109,47 @@ const Paragraph = () => {
     return groups;
   }, [segmentList]);
 
-  console.log(groupedSegments);
+  console.log(segmentList);
 
-  const handleSubmit = () => {
-    if (!translation) return;
-    setFocusedSegment((prev) => prev + 1);
+  const handleSubmit = async () => {
+    if (!translation.trim()) {
+      setFeedback({
+        correct: false,
+        feedback: "Please enter a translation first",
+        score: 0,
+      });
+      return;
+    }
+
+    try {
+      setIsChecking(true);
+
+      // Get current segment
+      const currentSegment = segmentList[focusedSegment];
+
+      // Call API to check translation
+      const response = await paragraphService.checkTranslation(
+        paragraphData.id,
+        currentSegment.segment,
+        translation,
+        paragraphData.paragraph,
+      );
+      setFeedback(response);
+
+      if (response?.score === 100) {
+        setFocusedSegment((prev) => prev + 1);
+        setTranslation("");
+      }
+    } catch (err) {
+      console.error("Error submitting translation:", err);
+      setFeedback({
+        correct: false,
+        feedback: "Error checking translation. Please try again.",
+        score: 0,
+      });
+    } finally {
+      setIsChecking(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -183,7 +220,7 @@ const Paragraph = () => {
               onChange={(e) => setTranslation(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Enter your English translation here... (Only highlighted sentence)"
-              className="w-full bg-slate-700/50 text-white placeholder-gray-400 rounded-lg px-4 py-4 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none h-24 text-sm"
+              className="w-full bg-slate-700/50 text-white placeholder-gray-400 rounded-lg px-4 py-4 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none h-24 text-base"
             />
           </div>
         </div>
@@ -197,7 +234,7 @@ const Paragraph = () => {
               className="bg-slate-800/60 rounded-xl p-6 border border-slate-700 flex-1 flex items-center justify-center hover:border-slate-600 transition cursor-pointer"
             >
               <div className="flex items-center gap-2">
-                <span className="text-lg">📖</span>
+                <BookOpen size={20} className="text-yellow-300" />
                 <h3 className="font-semibold">Dictionary</h3>
               </div>
             </button>
@@ -205,40 +242,68 @@ const Paragraph = () => {
             {/* Accuracy */}
             <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700 flex-1 flex items-center justify-center">
               <div className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full border-4 border-green-500 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-green-500/20 border-2 border-green-500"></div>
-                </div>
+                <Brain size={20} className="text-green-400" />
                 <h3 className="font-semibold">Accuracy</h3>
               </div>
             </div>
           </div>
 
           {/* Feedback */}
-          <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700">
-            <h3 className="font-semibold mb-3">Feedback</h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              Click{" "}
-              <span className="text-yellow-400 font-semibold">Submit</span> to
-              get feedback from{" "}
-              <span className="text-yellow-400 font-semibold">AI</span>. The
-              system will review your translation and point out its strengths
-              and areas for improvement.
-            </p>
-          </div>
-
-          {/* Today's Achievements */}
-          <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700">
-            <h3 className="font-semibold mb-4">Today's Achievements</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                <div className="text-4xl mb-2">🔥</div>
-                <p className="text-xs">1 Day Streak</p>
+          <div className="bg-slate-800/60 rounded-xl p-6 border border-slate-700 overflow-y-auto">
+            {feedback ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-semibold">
+                    {feedback.correct ? "Correct" : "Incorrect"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-base text-gray-400">Score:</span>
+                  <span className="text-lg font-bold text-yellow-400">
+                    {feedback.score}
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-slate-600 space-y-3">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1 font-semibold">
+                      Feedback:
+                    </p>
+                    <p className="text-base text-gray-300 leading-relaxed">
+                      {feedback.feedback}
+                    </p>
+                  </div>
+                  {feedback.suggestion && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1 font-semibold">
+                        Suggestion:
+                      </p>
+                      <p className="text-base text-blue-300 leading-relaxed">
+                        {feedback.suggestion}
+                      </p>
+                    </div>
+                  )}
+                  {feedback.explanation && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1 font-semibold">
+                        Explanation:
+                      </p>
+                      <p className="text-base text-amber-400 leading-relaxed">
+                        {feedback.explanation}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                <div className="text-4xl mb-2">💡</div>
-                <p className="text-xs">Bright Mind</p>
-              </div>
-            </div>
+            ) : (
+              <p className="text-sm text-gray-300 leading-relaxed">
+                Click{" "}
+                <span className="text-yellow-400 font-semibold">Submit</span> to
+                get feedback from{" "}
+                <span className="text-yellow-400 font-semibold">AI</span>. The
+                system will review your translation and point out its strengths
+                and areas for improvement.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -246,16 +311,16 @@ const Paragraph = () => {
       {/* Footer Buttons */}
       <div className="flex items-center justify-between pt-6 border-t border-slate-700">
         <button className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 rounded-lg px-6 py-3 font-semibold text-sm transition duration-200">
-          <span>←</span>
+          <ArrowLeft size={16} />
           <span>Quit</span>
         </button>
 
         <button
           onClick={handleSubmit}
-          disabled={!translation}
+          disabled={isChecking || !translation}
           className="flex items-center gap-3 bg-yellow-400 hover:bg-yellow-500 text-slate-900 rounded-lg px-8 py-3 font-bold text-sm transition duration-200 cursor-pointer disabled:grayscale disabled:cursor-not-allowed"
         >
-          <span>Submit</span>
+          <span>{isChecking ? "Checking..." : "Submit"}</span>
         </button>
       </div>
 

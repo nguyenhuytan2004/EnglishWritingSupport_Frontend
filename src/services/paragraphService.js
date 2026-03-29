@@ -13,6 +13,24 @@ const paragraphService = {
       throw error;
     }
   },
+
+  checkTranslation: async (paragraphId, segment, translation, context) => {
+    try {
+      const response = await apiClient.post(
+        `${API_ENDPOINTS.PARAGRAPH}/check-translation`,
+        {
+          paragraphId,
+          segment,
+          translation,
+          context,
+        },
+      );
+      return response;
+    } catch (error) {
+      console.error("Check translation error:", error);
+      throw error;
+    }
+  },
 };
 
 export default paragraphService;
